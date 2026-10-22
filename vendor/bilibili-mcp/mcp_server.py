@@ -268,6 +268,9 @@ async def bili_search(
     order: str = "totalrank",
     time_start: str = "",
     time_end: str = "",
+    min_play: int = 0,
+    min_review: int = 0,
+    min_danmaku: int = 0,
 ) -> str:
     """
     搜索B站视频
@@ -278,6 +281,9 @@ async def bili_search(
         order: 排序方式 totalrank=综合 click=播放量 pubdate=最新 dm=弹幕
         time_start: 只要这个日期之后的（"YYYY-MM-DD"）；与 time_end 搭配，留空=不过滤
         time_end: 只要这个日期之前的（"YYYY-MM-DD"）；与 time_start 搭配，留空=不过滤
+        min_play: 播放量下限（0=不设）；不合格的**不进返回**，模型看不到它们
+        min_review: 评论数下限（0=不设）
+        min_danmaku: 弹幕数下限（0=不设）
 
     Returns:
         JSON格式的视频列表，包含标题、BV号、播放量、评论数、UP主等
@@ -301,6 +307,22 @@ async def bili_search(
     if time_end:
         extra["time_end"] = time_end
 
+    # 参数没给（0）时退到环境变量：插件把用户设的门槛写进值班轮的 overlay env，
+    # 这样 headless 那轮**不调参数也照样有门槛**——它是使用者的策略，不是模型的选择题。
+    def _th(v, env_key):
+        n = int(v or 0)
+        if n <= 0:
+            try:
+                n = int(os.environ.get(env_key, "0") or 0)
+            except ValueError:
+                n = 0
+        return max(0, n)
+
+    thresholds = [_th(min_play, "BILI_MCP_MIN_PLAY"), _th(min_review, "BILI_MCP_MIN_REVIEW"), _th(min_danmaku, "BILI_MCP_MIN_DANMAKU")]
+    if any(t > 0 for t in thresholds):
+        # 有门槛 ⇒ 多拿一些再筛，免得门槛把结果砍到只剩两三条。
+        extra["page_size"] = 50
+
     result = await search.search_by_type(
         keyword=keyword,
         search_type=search.SearchObjectType.VIDEO,
@@ -309,8 +331,21 @@ async def bili_search(
         **extra,
     )
 
+    def _passes(item):
+        if thresholds[0] > 0 and int(item.get("play", 0) or 0) < thresholds[0]:
+            return False
+        if thresholds[1] > 0 and int(item.get("review", 0) or 0) < thresholds[1]:
+            return False
+        if thresholds[2] > 0 and int(item.get("video_review", 0) or 0) < thresholds[2]:
+            return False
+        return True
+
+    items = result.get("result", [])
+    if any(t > 0 for t in thresholds):
+        items = [it for it in items if _passes(it)]
+
     videos = []
-    for item in result.get("result", [])[:num]:
+    for item in items[:num]:
         title = item.get("title", "").replace('<em class="keyword">', "").replace("</em>", "")
         videos.append({
             "bvid": item.get("bvid", ""),
@@ -324,13 +359,16 @@ async def bili_search(
             "description": item.get("description", "")[:200],
         })
 
-    return json.dumps({
+    out = {
         "keyword": keyword,
         "count": len(videos),
         "time_start": time_start,
         "time_end": time_end,
         "videos": videos,
-    }, ensure_ascii=False)
+    }
+    if any(t > 0 for t in thresholds):
+        out["thresholds"] = {"min_play": thresholds[0], "min_review": thresholds[1], "min_danmaku": thresholds[2]}
+    return json.dumps(out, ensure_ascii=False)
 
 
 # ========== Tool 2: 获取评论 ==========

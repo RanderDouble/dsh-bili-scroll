@@ -248,6 +248,9 @@ function WatchTab() {
       const [sOrder, setSOrder] = React.useState(null)      // 搜索排序
       const [sDays, setSDays] = React.useState(null)        // 只看最近几天（0=不过滤）
       const [sNum, setSNum] = React.useState(null)          // 每次看多少条
+      const [minPlay, setMinPlay] = React.useState(null)        // 播放量门槛
+      const [minReview, setMinReview] = React.useState(null)    // 评论数门槛
+      const [minDanmaku, setMinDanmaku] = React.useState(null)  // 弹幕数门槛
       const [perRound, setPerRound] = React.useState(null)
       const [replyPer, setReplyPer] = React.useState(null)
       const [dmUid, setDmUid] = React.useState(null)        // 私信收件人 UID（本地草稿）
@@ -286,6 +289,9 @@ function WatchTab() {
         if (cfg && sOrder === null) setSOrder(cfg.searchOrder || 'totalrank')
         if (cfg && sDays === null) setSDays(String(cfg.searchDays ?? 0))
         if (cfg && sNum === null) setSNum(String(cfg.searchNum ?? 10))
+        if (cfg && minPlay === null) setMinPlay(String(cfg.minPlay ?? 0))
+        if (cfg && minReview === null) setMinReview(String(cfg.minReview ?? 0))
+        if (cfg && minDanmaku === null) setMinDanmaku(String(cfg.minDanmaku ?? 0))
         if (cfg && perRound === null) setPerRound(String(cfg.commentPerRound ?? 1))
         if (cfg && replyPer === null) setReplyPer(String(cfg.replyPerRound ?? 1))
         if (cfg && mention === null) setMention(cfg.mentionName || '')
@@ -709,6 +715,20 @@ function WatchTab() {
               onChange: (e) => setSNum(e.target.value),
               onBlur: () => { const n = Math.max(1, Math.min(Number(sNum) || 10, 50)); setSNum(String(n)); patch({ searchNum: n }, '每次看多少条') },
             })),
+          h('div', { 'data-bd-label': '' }, '热度门槛（填 0 = 不设；低于门槛的直接不出现）'),
+          h('div', { 'data-bd-row': '' },
+            ...[['最低播放量', minPlay, setMinPlay, 'minPlay'], ['最低评论数', minReview, setMinReview, 'minReview'], ['最低弹幕数', minDanmaku, setMinDanmaku, 'minDanmaku']].map(([label, val, set, key]) => h('div', {
+              key,
+              style: { flex: '1', minWidth: '0' },
+            },
+              h('div', { 'data-bd-note': '' }, label),
+              h('input', {
+                'data-bd-input': '', 'data-bd-num': '', type: 'number', min: 0, step: 100,
+                value: val ?? '',
+                onChange: (e) => set(e.target.value),
+                onBlur: () => { const n = Math.max(0, Math.min(Math.floor(Number(val) || 0), 100000000)); set(String(n)); patch({ [key]: n }, label) },
+              })))),
+          h('div', { 'data-bd-note': '' }, '搜索结果本身带播放量/评论数/弹幕数，门槛在结果生成处拦：值班轮（headless）不调参数也按这里生效。点赞数搜索结果里没有，拦不了。'),
           h('div', { 'data-bd-label': '' }, '它按什么说话（人设提示词，可留空）'),
           h('textarea', {
             'data-bd-input': '', rows: 6,
