@@ -848,16 +848,7 @@ function WatchTab() {
           () => h(Panel),
         ))
 
-  // ⭐ 2026-10-20 实验：会话头第三个 tab（0.2.1 里这个槽位真实存在；老版本没有就静默跳过）
-  try {
-    slots.inject('conversation.view', () => slots.register({
-      name: 'conversation.view',
-      id: 'bili-watched',
-      order: 20,
-      label: '刷过的视频',
-      scope: 'session',
-    }, () => h(WatchTab)))
-  } catch (e) { /* 没有这个槽位就算了 */ }
+  // 「它刷过的视频」列表保留在设置页里；会话头第三个 tab 那个实验不挂（0.2.1 有这个槽位）。
       },
     }
   },
